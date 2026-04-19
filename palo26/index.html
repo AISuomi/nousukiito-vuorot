@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h2>Palo 2026</h2>
+
+<input type="password" id="pw">
+<button onclick="login()">Kirjaudu</button>
+
+<div id="app" style="display:none;">
+<input id="name" placeholder="Nimi">
+
+<div id="shifts"></div>
+<button onclick="save()">Tallenna</button>
+
+<div id="list"></div>
+</div>
+
+<script>
+const group = "palo26";
+let token = localStorage.getItem("token_"+group);
+
+async function login(){
+  const pw = document.getElementById("pw").value;
+
+  const res = await fetch("/api/login?group="+group,{
+    method:"POST",
+    body:pw
+  });
+
+  const data = await res.json();
+  if(data.token){
+    localStorage.setItem("token_"+group, data.token);
+    location.reload();
+  }
+}
+
+if(token){
+  document.getElementById("app").style.display="block";
+  load();
+}
+
+const shifts=["1","2","3","4","5","6"];
+
+shifts.forEach(s=>{
+  document.getElementById("shifts").innerHTML+=
+    `<label><input type="checkbox" value="${s}"> ${s}</label><br>`;
+});
+
+async function load(){
+  const res = await fetch("/api/shifts",{
+    headers:{Authorization:token}
+  });
+  const data = await res.json();
+
+  document.getElementById("list").innerHTML =
+    data.map(x=>x.name+" → "+x.shift).join("<br>");
+}
+
+async function save(){
+  const name = document.getElementById("name").value;
+  const selected=[...document.querySelectorAll("input:checked")].map(x=>x.value);
+
+  await fetch("/api/shifts",{
+    method:"POST",
+    headers:{Authorization:token},
+    body:JSON.stringify({name,shifts:selected})
+  });
+
+  load();
+}
+</script>
+
+</body>
+</html>
