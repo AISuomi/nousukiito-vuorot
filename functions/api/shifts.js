@@ -5,7 +5,7 @@ export async function onRequestGet({ env, request }) {
   }
 
   const { results } = await env.DB.prepare(
-    `SELECT id, grp, label, slot1, slot2, sort_order
+    `SELECT id, grp, label, slot1, slot2, sort_order, updated_at
      FROM shifts
      WHERE grp = ?
      ORDER BY sort_order ASC, id ASC`
@@ -33,7 +33,7 @@ export async function onRequestPost({ env, request }) {
 
   await env.DB.prepare(
     `UPDATE shifts
-     SET slot1 = ?, slot2 = ?
+     SET slot1 = ?, slot2 = ?, updated_at = CAST(strftime('%s','now') AS INTEGER)
      WHERE id = ? AND grp = ?`
   ).bind(
     (data.slot1 || "").trim(),
@@ -42,7 +42,13 @@ export async function onRequestPost({ env, request }) {
     group
   ).run();
 
-  return new Response(JSON.stringify({ ok: true }), {
+  const { results } = await env.DB.prepare(
+    `SELECT id, grp, label, slot1, slot2, sort_order, updated_at
+     FROM shifts
+     WHERE id = ? AND grp = ?`
+  ).bind(data.id, group).all();
+
+  return new Response(JSON.stringify({ ok: true, row: results[0] || null }), {
     headers: { "Content-Type": "application/json" }
   });
 }
