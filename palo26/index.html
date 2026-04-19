@@ -50,11 +50,23 @@
       background: #fff;
     }
 
+    input[readonly] {
+      background: #eef3ed;
+      color: #334155;
+    }
+
     .name-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 10px;
       margin-top: 12px;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
     }
 
     button {
@@ -89,6 +101,13 @@
       margin-top: 10px;
       font-size: 14px;
       color: #2f6f3e;
+      min-height: 18px;
+    }
+
+    .updated {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #475569;
     }
 
     .hidden {
@@ -140,6 +159,7 @@
     const group = "palo26";
     const tokenKey = "token_" + group;
     let token = localStorage.getItem(tokenKey);
+    let rowsById = {};
 
     async function login() {
       const pw = document.getElementById("pw").value;
@@ -173,25 +193,81 @@
         .replaceAll("'", "&#039;");
     }
 
+    function formatUpdatedAt(ts) {
+      if (!ts) return "Ei vielä muokattu";
+      const d = new Date(ts * 1000);
+      return d.toLocaleString("fi-FI", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+
+    function isLockedValue(value) {
+      return (value || "").trim() !== "";
+    }
+
     function renderRows(rows) {
+      rowsById = {};
+      rows.forEach(row => rowsById[row.id] = row);
+
       const app = document.getElementById("app");
 
-      app.innerHTML = rows.map(row => `
-        <div class="card">
-          <div class="label">${escapeHtml(row.label)}</div>
+      app.innerHTML = rows.map(row => {
+        const slot1Locked = isLockedValue(row.slot1);
+        const slot2Locked = isLockedValue(row.slot2);
 
-          <div class="name-grid">
-            <input type="text" id="slot1_${row.id}" placeholder="Nimi 1" value="${escapeHtml(row.slot1 || "")}">
-            <input type="text" id="slot2_${row.id}" placeholder="Nimi 2" value="${escapeHtml(row.slot2 || "")}">
+        return `
+          <div class="card">
+            <div class="label">${escapeHtml(row.label)}</div>
+
+            <div class="name-grid">
+              <input
+                type="text"
+                id="slot1_${row.id}"
+                placeholder="Nimi 1"
+                value="${escapeHtml(row.slot1 || "")}"
+                ${slot1Locked ? "readonly" : ""}
+              >
+              <input
+                type="text"
+                id="slot2_${row.id}"
+                placeholder="Nimi 2"
+                value="${escapeHtml(row.slot2 || "")}"
+                ${slot2Locked ? "readonly" : ""}
+              >
+            </div>
+
+            <div class="button-row">
+              <button class="secondary" onclick="unlockField(${row.id}, 1)">Muokkaa nimeä 1</button>
+              <button class="secondary" onclick="unlockField(${row.id}, 2)">Muokkaa nimeä 2</button>
+              <button onclick="saveRow(${row.id})">Tallenna muutokset</button>
+            </div>
+
+            <div class="updated" id="updated_${row.id}">
+              Viimeksi muokattu: ${escapeHtml(formatUpdatedAt(row.updated_at))}
+            </div>
+
+            <div class="status" id="status_${row.id}"></div>
           </div>
+        `;
+      }).join("");
+    }
 
-          <div class="status" id="status_${row.id}"></div>
+    function unlockField(id, slotNumber) {
+      const input = document.getElementById(`slot${slotNumber}_${id}`);
+      if (!input) return;
 
-          <div style="margin-top:12px;">
-            <button onclick="saveRow(${row.id})">Tallenna muutokset</button>
-          </div>
-        </div>
-      `).join("");
+      if (input.readOnly) {
+        const ok = confirm("Tämä kenttä sisältää jo nimen. Haluatko avata sen muokattavaksi?");
+        if (!ok) return;
+      }
+
+      input.readOnly = false;
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
     }
 
     async function load() {
@@ -209,9 +285,25 @@
     }
 
     async function saveRow(id) {
-      const slot1 = document.getElementById("slot1_" + id).value;
-      const slot2 = document.getElementById("slot2_" + id).value;
+      const slot1Input = document.getElementById("slot1_" + id);
+      const slot2Input = document.getElementById("slot2_" + id);
       const status = document.getElementById("status_" + id);
+      const updated = document.getElementById("updated_" + id);
+
+      const slot1 = slot1Input.value.trim();
+      const slot2 = slot2Input.value.trim();
+
+      const original = rowsById[id] || {};
+      const original1 = (original.slot1 || "").trim();
+      const original2 = (original.slot2 || "").trim();
+
+      const overwriting1 = original1 !== "" && slot1 !== original1;
+      const overwriting2 = original2 !== "" && slot2 !== original2;
+
+      if (overwriting1 || overwriting2) {
+        const ok = confirm("Olet muuttamassa jo täytettyä nimeä. Haluatko varmasti tallentaa muutoksen?");
+        if (!ok) return;
+      }
 
       status.textContent = "Tallennetaan...";
 
@@ -228,14 +320,32 @@
         })
       });
 
-      if (res.ok) {
-        status.textContent = "Tallennettu";
-        setTimeout(() => {
-          status.textContent = "";
-        }, 1500);
-      } else {
+      if (!res.ok) {
         status.textContent = "Tallennus epäonnistui";
+        return;
       }
+
+      const data = await res.json();
+      const row = data.row || {
+        ...original,
+        slot1,
+        slot2
+      };
+
+      rowsById[id] = row;
+
+      slot1Input.value = row.slot1 || "";
+      slot2Input.value = row.slot2 || "";
+
+      slot1Input.readOnly = isLockedValue(row.slot1);
+      slot2Input.readOnly = isLockedValue(row.slot2);
+
+      updated.textContent = "Viimeksi muokattu: " + formatUpdatedAt(row.updated_at);
+      status.textContent = "Tallennettu";
+
+      setTimeout(() => {
+        status.textContent = "";
+      }, 1500);
     }
 
     if (token) {
@@ -245,7 +355,5 @@
       load();
     }
   </script>
-</body>
-</html>
 </body>
 </html>
