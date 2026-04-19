@@ -297,13 +297,20 @@
       const original1 = (original.slot1 || "").trim();
       const original2 = (original.slot2 || "").trim();
 
-      const overwriting1 = original1 !== "" && slot1 !== original1;
-      const overwriting2 = original2 !== "" && slot2 !== original2;
+      const overwriting1 =
+        original1 !== "" &&
+        slot1 !== original1 &&
+        slot1 !== "";
+
+      const overwriting2 =
+        original2 !== "" &&
+        slot2 !== original2 &&
+        slot2 !== "";
 
       if (overwriting1 || overwriting2) {
-        const ok = confirm("Olet muuttamassa jo täytettyä nimeä. Haluatko varmasti tallentaa muutoksen?");
-        if (!ok) return;
-      }
+      const ok = confirm("Olet muuttamassa jo täytettyä nimeä. Haluatko varmasti tallentaa muutoksen?");
+      if (!ok) return;
+}
 
       status.textContent = "Tallennetaan...";
 
