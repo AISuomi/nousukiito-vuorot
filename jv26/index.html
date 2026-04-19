@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JV 2026</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f3f6f4;
+      color: #1f2a1f;
+    }
+
+    .wrap {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    h1 {
+      font-size: 28px;
+      margin: 0 0 16px;
+    }
+
+    .login-box,
+    .card {
+      background: #dff0db;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    input[type="password"],
+    input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px;
+      border: 1px solid #b7cdb4;
+      border-radius: 8px;
+      font-size: 16px;
+      background: #fff;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .time {
+      font-size: 22px;
+      font-weight: bold;
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+
+    .meta {
+      font-size: 14px;
+      color: #475569;
+      margin-bottom: 12px;
+    }
+
+    .names {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 8px;
+      background: #2f6f3e;
+      color: white;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: #6b7280;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #2f6f3e;
+      min-height: 18px;
+    }
+
+    .updated {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #475569;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (max-width: 640px) {
+      .names {
+        grid-template-columns: 1fr;
+      }
+
+      .time {
+        font-size: 18px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      button {
+        width: 100%;
+      }
+
+      .topbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <h1>JV 2026</h1>
+      <button id="logoutBtn" class="secondary hidden" onclick="logout()">Kirjaudu ulos</button>
+    </div>
+
+    <div id="loginBox" class="login-box">
+      <div class="row">
+        <input type="password" id="pw" placeholder="Salasana" />
+        <button onclick="login()">Kirjaudu</button>
+      </div>
+    </div>
+
+    <div id="app" class="hidden"></div>
+  </div>
+
+  <script>
+    const group = "jv26";
+    const tokenKey = "token_" + group;
+    let token = localStorage.getItem(tokenKey);
+    let rowsById = {};
+
+    async function login() {
+      const pw = document.getElementById("pw").value;
+
+      const res = await fetch("/api/login?group=" + group, {
+        method: "POST",
+        body: pw
+      });
+
+      const data = await res.json();
+
+      if (data.token) {
+        localStorage.setItem(tokenKey, data.token);
+        location.reload();
+      } else {
+        alert("Väärä salasana");
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem(tokenKey);
+      location.reload();
+    }
+
+    function escapeHtml(str) {
+      return (str || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function formatFiDateTime(dbText) {
+      const [datePart, timePart] = dbText.split(" ");
+      const [y, m, d] = datePart.split("-");
+      return `${d}.${m}.${y} ${timePart.slice(0,5)}`;
+    }
+
+    function formatRange(row) {
+      return `${formatFiDateTime(row.start_at)} – ${formatFiDateTime(row.end_at)}`;
+    }
+
+    function formatUpdatedAt(ts) {
+      if (!ts) return "Ei vielä muokattu";
+      const d = new Date(ts * 1000);
+      return d.toLocaleString("fi-FI", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+
+    function renderRows(rows) {
+      rowsById = {};
+      rows.forEach(row => rowsById[row.id] = row);
+
+      const app = document.getElementById("app");
+
+      app.innerHTML = rows.map(row => {
+        const inputs = Array.from({ length: row.needed }, (_, i) => {
+          const value = row.names?.[i] || "";
+          return `
+            <input
+              type="text"
+              id="name_${row.id}_${i}"
+              placeholder="Nimi ${i + 1}"
+              value="${escapeHtml(value)}"
+            >
+          `;
+        }).join("");
+
+        return `
+          <div class="card">
+            <div class="time">${escapeHtml(formatRange(row))}</div>
+            <div class="meta">Henkilötarve: ${row.needed}</div>
+
+            <div class="names">
+              ${inputs}
+            </div>
+
+            <div class="button-row">
+              <button onclick="saveRow(${row.id})">Tallenna muutokset</button>
+            </div>
+
+            <div class="updated" id="updated_${row.id}">
+              Viimeksi muokattu: ${escapeHtml(formatUpdatedAt(row.updated_at))}
+            </div>
+
+            <div class="status" id="status_${row.id}"></div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    async function load() {
+      const res = await fetch("/api/jv-shifts", {
+        headers: { Authorization: token }
+      });
+
+      if (res.status === 401) {
+        logout();
+        return;
+      }
+
+      const data = await res.json();
+      renderRows(data);
+    }
+
+    async function saveRow(id) {
+      const row = rowsById[id];
+      const status = document.getElementById("status_" + id);
+      const updated = document.getElementById("updated_" + id);
+
+      const names = [];
+      for (let i = 0; i < row.needed; i++) {
+        names.push(document.getElementById(`name_${id}_${i}`).value.trim());
+      }
+
+      const oldNames = row.names || [];
+      const hasOverwrite = names.some((name, i) => {
+        const oldValue = (oldNames[i] || "").trim();
+        return oldValue !== "" && name !== oldValue && name !== "";
+      });
+
+      if (hasOverwrite) {
+        const ok = confirm("Olet muuttamassa jo täytettyä nimeä. Haluatko varmasti tallentaa muutoksen?");
+        if (!ok) return;
+      }
+
+      status.textContent = "Tallennetaan...";
+
+      const res = await fetch("/api/jv-shifts", {
+        method: "POST",
+        headers: {
+          Authorization: token,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ id, names })
+      });
+
+      if (!res.ok) {
+        status.textContent = "Tallennus epäonnistui";
+        return;
+      }
+
+      const data = await res.json();
+      rowsById[id] = data.row;
+
+      updated.textContent = "Viimeksi muokattu: " + formatUpdatedAt(data.row.updated_at);
+      status.textContent = "Tallennettu";
+
+      setTimeout(() => {
+        status.textContent = "";
+      }, 1500);
+    }
+
+    if (token) {
+      document.getElementById("loginBox").classList.add("hidden");
+      document.getElementById("app").classList.remove("hidden");
+      document.getElementById("logoutBtn").classList.remove("hidden");
+      load();
+    }
+  </script>
+</body>
+</html>
