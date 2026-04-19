@@ -1,75 +1,251 @@
 <!DOCTYPE html>
-<html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Palo 2026</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f3f6f4;
+      color: #1f2a1f;
+    }
+
+    .wrap {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    h1 {
+      font-size: 28px;
+      margin: 0 0 16px;
+    }
+
+    .login-box,
+    .card {
+      background: #dff0db;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    input[type="password"],
+    input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px;
+      border: 1px solid #b7cdb4;
+      border-radius: 8px;
+      font-size: 16px;
+      background: #fff;
+    }
+
+    .name-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    button {
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 8px;
+      background: #2f6f3e;
+      color: white;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: #6b7280;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .label {
+      font-size: 26px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #2f6f3e;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (max-width: 640px) {
+      .name-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .label {
+        font-size: 22px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      button {
+        width: 100%;
+      }
+
+      .topbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
 <body>
+  <div class="wrap">
+    <div class="topbar">
+      <h1>Palo 2026</h1>
+      <button id="logoutBtn" class="secondary hidden" onclick="logout()">Kirjaudu ulos</button>
+    </div>
 
-<h2>Palo 2026</h2>
+    <div id="loginBox" class="login-box">
+      <div class="row">
+        <input type="password" id="pw" placeholder="Salasana" />
+        <button onclick="login()">Kirjaudu</button>
+      </div>
+    </div>
 
-<input type="password" id="pw">
-<button onclick="login()">Kirjaudu</button>
+    <div id="app" class="hidden"></div>
+  </div>
 
-<div id="app" style="display:none;">
-<input id="name" placeholder="Nimi">
+  <script>
+    const group = "palo26";
+    const tokenKey = "token_" + group;
+    let token = localStorage.getItem(tokenKey);
 
-<div id="shifts"></div>
-<button onclick="save()">Tallenna</button>
+    async function login() {
+      const pw = document.getElementById("pw").value;
 
-<div id="list"></div>
-</div>
+      const res = await fetch("/api/login?group=" + group, {
+        method: "POST",
+        body: pw
+      });
 
-<script>
-const group = "palo26";
-let token = localStorage.getItem("token_"+group);
+      const data = await res.json();
 
-async function login(){
-  const pw = document.getElementById("pw").value;
+      if (data.token) {
+        localStorage.setItem(tokenKey, data.token);
+        location.reload();
+      } else {
+        alert("Väärä salasana");
+      }
+    }
 
-  const res = await fetch("/api/login?group="+group,{
-    method:"POST",
-    body:pw
-  });
+    function logout() {
+      localStorage.removeItem(tokenKey);
+      location.reload();
+    }
 
-  const data = await res.json();
-  if(data.token){
-    localStorage.setItem("token_"+group, data.token);
-    location.reload();
-  }
-}
+    function escapeHtml(str) {
+      return (str || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
 
-if(token){
-  document.getElementById("app").style.display="block";
-  load();
-}
+    function renderRows(rows) {
+      const app = document.getElementById("app");
 
-const shifts=["1","2","3","4","5","6"];
+      app.innerHTML = rows.map(row => `
+        <div class="card">
+          <div class="label">${escapeHtml(row.label)}</div>
 
-shifts.forEach(s=>{
-  document.getElementById("shifts").innerHTML+=
-    `<label><input type="checkbox" value="${s}"> ${s}</label><br>`;
-});
+          <div class="name-grid">
+            <input type="text" id="slot1_${row.id}" placeholder="Nimi 1" value="${escapeHtml(row.slot1 || "")}">
+            <input type="text" id="slot2_${row.id}" placeholder="Nimi 2" value="${escapeHtml(row.slot2 || "")}">
+          </div>
 
-async function load(){
-  const res = await fetch("/api/shifts",{
-    headers:{Authorization:token}
-  });
-  const data = await res.json();
+          <div class="status" id="status_${row.id}"></div>
 
-  document.getElementById("list").innerHTML =
-    data.map(x=>x.name+" → "+x.shift).join("<br>");
-}
+          <div style="margin-top:12px;">
+            <button onclick="saveRow(${row.id})">Tallenna muutokset</button>
+          </div>
+        </div>
+      `).join("");
+    }
 
-async function save(){
-  const name = document.getElementById("name").value;
-  const selected=[...document.querySelectorAll("input:checked")].map(x=>x.value);
+    async function load() {
+      const res = await fetch("/api/shifts", {
+        headers: { Authorization: token }
+      });
 
-  await fetch("/api/shifts",{
-    method:"POST",
-    headers:{Authorization:token},
-    body:JSON.stringify({name,shifts:selected})
-  });
+      if (res.status === 401) {
+        logout();
+        return;
+      }
 
-  load();
-}
-</script>
+      const data = await res.json();
+      renderRows(data);
+    }
 
+    async function saveRow(id) {
+      const slot1 = document.getElementById("slot1_" + id).value;
+      const slot2 = document.getElementById("slot2_" + id).value;
+      const status = document.getElementById("status_" + id);
+
+      status.textContent = "Tallennetaan...";
+
+      const res = await fetch("/api/shifts", {
+        method: "POST",
+        headers: {
+          Authorization: token,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          id,
+          slot1,
+          slot2
+        })
+      });
+
+      if (res.ok) {
+        status.textContent = "Tallennettu";
+        setTimeout(() => {
+          status.textContent = "";
+        }, 1500);
+      } else {
+        status.textContent = "Tallennus epäonnistui";
+      }
+    }
+
+    if (token) {
+      document.getElementById("loginBox").classList.add("hidden");
+      document.getElementById("app").classList.remove("hidden");
+      document.getElementById("logoutBtn").classList.remove("hidden");
+      load();
+    }
+  </script>
+</body>
+</html>
 </body>
 </html>
