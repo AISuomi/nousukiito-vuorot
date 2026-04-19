@@ -303,7 +303,6 @@
       const data = await res.json();
       rowsById[id] = data.row;
 
-      updated.textContent = "Viimeksi muokattu: " + formatUpdatedAt(data.row.updated_at);
       status.textContent = "Tallennettu";
 
       setTimeout(() => {
