@@ -14,14 +14,14 @@ export async function onRequestGet({ env, request }) {
        s.phone,
        s.jv_card_number,
        s.home_unit,
+       s.active,
        s.created_at,
        s.updated_at,
        j.start_at,
        j.end_at
      FROM jv_signups s
-     JOIN jv_shifts j ON j.id = s.shift_id
-     WHERE s.active = 1
-     ORDER BY j.start_at ASC, j.end_at ASC, s.slot_index ASC, s.id ASC`
+     LEFT JOIN jv_shifts j ON j.id = s.shift_id
+     ORDER BY s.active DESC, j.start_at ASC, j.end_at ASC, s.full_name ASC`
   ).all();
 
   return new Response(JSON.stringify(results || []), {
