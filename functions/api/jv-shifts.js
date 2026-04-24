@@ -71,9 +71,37 @@ export async function onRequestPost({ env, request }) {
     const newValue = (cleaned[i] || "").trim();
 
     if (oldValue !== "" && oldValue !== newValue) {
-      await env.DB.prepare(
-        `UPDATE jv_signups
-         SET active = 0,
+// tarkista löytyykö nimi jostain toisesta vuorosta vielä
+const stillExists = await env.DB.prepare(
+  `SELECT COUNT(*) as count
+   FROM jv_shifts`
+).all();
+
+const allShifts = await env.DB.prepare(
+  `SELECT names_json FROM jv_shifts`
+).all();
+
+let foundElsewhere = false;
+
+for (const s of allShifts.results || []) {
+  const names = safeParseJson(s.names_json, 50);
+  if (names.includes(oldValue)) {
+    foundElsewhere = true;
+    break;
+  }
+}
+
+if (!foundElsewhere) {
+  await env.DB.prepare(
+    `UPDATE jv_signups
+     SET active = 0,
+         updated_at = CAST(strftime('%s','now') AS INTEGER)
+     WHERE shift_id = ?
+       AND slot_index = ?
+       AND full_name = ?
+       AND active = 1`
+  ).bind(data.id, i, oldValue).run();
+}
              updated_at = CAST(strftime('%s','now') AS INTEGER)
          WHERE shift_id = ?
            AND slot_index = ?
