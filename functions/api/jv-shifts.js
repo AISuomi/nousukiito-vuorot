@@ -35,20 +35,23 @@ export async function onRequestPost({ env, request }) {
     });
   }
 
-  const { results } = await env.DB.prepare(
-    `SELECT needed
+  const current = await env.DB.prepare(
+    `SELECT id, needed, names_json, updated_at
      FROM jv_shifts
      WHERE id = ?`
   ).bind(data.id).all();
 
-  if (!results || !results[0]) {
+  if (!current.results || !current.results[0]) {
     return new Response(JSON.stringify({ error: "Row not found" }), {
       status: 404,
       headers: { "Content-Type": "application/json" }
     });
   }
 
-  const needed = Number(results[0].needed || 0);
+  const row = current.results[0];
+  const needed = Number(row.needed || 0);
+  const oldNames = safeParseJson(row.names_json, needed);
+
   const cleaned = data.names
     .slice(0, needed)
     .map(x => (x || "").trim());
@@ -63,19 +66,36 @@ export async function onRequestPost({ env, request }) {
      WHERE id = ?`
   ).bind(JSON.stringify(cleaned), data.id).run();
 
+  for (let i = 0; i < needed; i++) {
+    const oldValue = (oldNames[i] || "").trim();
+    const newValue = (cleaned[i] || "").trim();
+
+    if (oldValue !== "" && oldValue !== newValue) {
+      await env.DB.prepare(
+        `UPDATE jv_signups
+         SET active = 0,
+             updated_at = CAST(strftime('%s','now') AS INTEGER)
+         WHERE shift_id = ?
+           AND slot_index = ?
+           AND active = 1
+           AND full_name = ?`
+      ).bind(data.id, i, oldValue).run();
+    }
+  }
+
   const updated = await env.DB.prepare(
     `SELECT id, start_at, end_at, needed, names_json, updated_at
      FROM jv_shifts
      WHERE id = ?`
   ).bind(data.id).all();
 
-  const row = updated.results[0];
+  const out = updated.results[0];
 
   return new Response(JSON.stringify({
     ok: true,
     row: {
-      ...row,
-      names: safeParseJson(row.names_json, row.needed)
+      ...out,
+      names: safeParseJson(out.names_json, out.needed)
     }
   }), {
     headers: { "Content-Type": "application/json" }
