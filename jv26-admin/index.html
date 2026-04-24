@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JV 2026 admin</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f3f6f4;
+      color: #1f2a1f;
+    }
+    .wrap {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    h1 {
+      font-size: 28px;
+      margin: 0 0 16px;
+    }
+    .login-box, .card {
+      background: #dff0db;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px;
+      border: 1px solid #b7cdb4;
+      border-radius: 8px;
+      font-size: 16px;
+      background: #fff;
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 8px;
+      background: #2f6f3e;
+      color: white;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    .secondary {
+      background: #6b7280;
+    }
+    .hidden { display: none; }
+    .time {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    .line {
+      margin: 4px 0;
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>JV 2026 admin</h1>
+
+    <div id="loginBox" class="login-box">
+      <input type="password" id="pw" placeholder="Admin-salasana" />
+      <button onclick="login()">Kirjaudu</button>
+    </div>
+
+    <div id="app" class="hidden">
+      <button class="secondary" onclick="logout()">Kirjaudu ulos</button>
+      <div id="list" style="margin-top:12px;"></div>
+    </div>
+  </div>
+
+  <script>
+    const group = "jv26_admin";
+    const tokenKey = "token_" + group;
+    let token = localStorage.getItem(tokenKey);
+
+    function formatFiDateTime(dbText) {
+      const [datePart, timePart] = dbText.split(" ");
+      const [y, m, d] = datePart.split("-");
+      return `${d}.${m}.${y} ${timePart.slice(0,5)}`;
+    }
+
+    function formatRange(row) {
+      return `${formatFiDateTime(row.start_at)} – ${formatFiDateTime(row.end_at)}`;
+    }
+
+    function escapeHtml(str) {
+      return (str || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    async function login() {
+      const pw = document.getElementById("pw").value;
+
+      const res = await fetch("/api/login?group=" + group, {
+        method: "POST",
+        body: pw
+      });
+
+      const data = await res.json();
+
+      if (data.token) {
+        localStorage.setItem(tokenKey, data.token);
+        location.reload();
+      } else {
+        alert("Väärä salasana");
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem(tokenKey);
+      location.reload();
+    }
+
+    async function load() {
+      const res = await fetch("/api/jv-admin", {
+        headers: { Authorization: token }
+      });
+
+      if (res.status === 401) {
+        logout();
+        return;
+      }
+
+      const rows = await res.json();
+
+      document.getElementById("list").innerHTML = rows.map(r => `
+        <div class="card">
+          <div class="time">${escapeHtml(formatRange(r))}</div>
+          <div class="line"><strong>Nimi:</strong> ${escapeHtml(r.full_name)}</div>
+          <div class="line"><strong>Email:</strong> ${escapeHtml(r.email)}</div>
+          <div class="line"><strong>Puhelin:</strong> ${escapeHtml(r.phone)}</div>
+          <div class="line"><strong>JV-kortti:</strong> ${escapeHtml(r.jv_card_number)}</div>
+          <div class="line"><strong>Paikkakunta / rauhanyhdistys:</strong> ${escapeHtml(r.home_unit)}</div>
+        </div>
+      `).join("");
+    }
+
+    if (token) {
+      document.getElementById("loginBox").classList.add("hidden");
+      document.getElementById("app").classList.remove("hidden");
+      load();
+      setInterval(load, 20000);
+    }
+  </script>
+</body>
+</html>
