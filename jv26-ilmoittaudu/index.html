@@ -4,23 +4,127 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>JV 2026 ilmoittautuminen</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f3f6f4;
+      color: #1f2a1f;
+    }
+
+    .wrap {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    h1 {
+      font-size: 28px;
+      margin: 0 0 16px;
+    }
+
+    .formbox,
+    .card {
+      background: #dff0db;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    select,
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 13px;
+      border: 1px solid #b7cdb4;
+      border-radius: 9px;
+      font-size: 16px;
+      background: white;
+      margin-bottom: 11px;
+    }
+
+    button {
+      padding: 12px 16px;
+      border: 0;
+      border-radius: 9px;
+      background: #2f6f3e;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .status {
+      margin-top: 12px;
+      font-size: 15px;
+      color: #2f6f3e;
+      min-height: 20px;
+    }
+
+    .time {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 6px;
+      line-height: 1.35;
+    }
+
+    .meta {
+      color: #475569;
+      font-size: 15px;
+    }
+
+    .full {
+      opacity: 0.65;
+    }
+
+    .note {
+      font-size: 14px;
+      color: #475569;
+      margin-bottom: 12px;
+    }
+
+    @media (max-width: 640px) {
+      .wrap {
+        padding: 12px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .time {
+        font-size: 18px;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
 </head>
 <body>
-  <h1>JV 2026 ilmoittautuminen</h1>
+  <div class="wrap">
+    <h1>JV 2026 ilmoittautuminen</h1>
 
-  <select id="shift_id"></select><br><br>
-  <input id="first_name" placeholder="Etunimi"><br><br>
-  <input id="last_name" placeholder="Sukunimi"><br><br>
-  <input id="email" placeholder="Sähköposti"><br><br>
-  <input id="phone" placeholder="Puhelin"><br><br>
-  <input id="jv_card_number" placeholder="JV-kortin numero"><br><br>
-  <input id="home_unit" placeholder="Paikkakunta / rauhanyhdistys"><br><br>
+    <div class="formbox">
+      <div class="note">Valitse vuoro ja täytä tiedot. Muiden ilmoittautuneiden nimiä ei näytetä tällä sivulla.</div>
 
-  <button onclick="submitSignup()">Ilmoittaudu vuoroon</button>
-  <div id="formStatus"></div>
+      <select id="shift_id"></select>
 
-  <hr>
-  <div id="list"></div>
+      <input id="first_name" placeholder="Etunimi" />
+      <input id="last_name" placeholder="Sukunimi" />
+      <input id="email" placeholder="Sähköposti" />
+      <input id="phone" placeholder="Puhelin" />
+      <input id="jv_card_number" placeholder="JV-kortin numero" />
+      <input id="home_unit" placeholder="Paikkakunta / rauhanyhdistys" />
+
+      <button onclick="submitSignup()">Ilmoittaudu vuoroon</button>
+      <div id="formStatus" class="status"></div>
+    </div>
+
+    <div id="list"></div>
+  </div>
 
 <script>
 let rows = [];
@@ -40,6 +144,15 @@ function formatRange(row) {
   return `${formatFiDateTime(row.start_at)} – ${formatFiDateTime(row.end_at)}`;
 }
 
+function escapeHtml(str) {
+  return (str || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 function render(rows, updateSelect = true) {
   const select = document.getElementById("shift_id");
   const oldValue = select.value;
@@ -49,14 +162,18 @@ function render(rows, updateSelect = true) {
 
     select.innerHTML = freeRows.map(r => {
       const selected = String(r.id) === String(oldValue) ? "selected" : "";
-      return `<option value="${r.id}" ${selected}>${formatRange(r)} — vapaita: ${r.free}</option>`;
+      return `<option value="${r.id}" ${selected}>${escapeHtml(formatRange(r))} — vapaita: ${r.free}</option>`;
     }).join("");
+
+    if (freeRows.length === 0) {
+      select.innerHTML = `<option value="">Ei vapaita vuoroja</option>`;
+    }
   }
 
   document.getElementById("list").innerHTML = rows.map(r => `
-    <div style="background:#dff0db; padding:12px; margin:10px 0; border-radius:8px;">
-      <strong>${formatRange(r)}</strong><br>
-      Henkilötarve: ${r.needed} · Vapaita paikkoja: ${r.free}
+    <div class="card ${r.free === 0 ? "full" : ""}">
+      <div class="time">${escapeHtml(formatRange(r))}</div>
+      <div class="meta">Henkilötarve: ${r.needed} · Vapaita paikkoja: ${r.free}</div>
     </div>
   `).join("");
 }
