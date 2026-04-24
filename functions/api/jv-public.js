@@ -82,8 +82,54 @@ export async function onRequestPost({ env, request }) {
     ).run();
 
     if (update.meta && update.meta.changes === 1) {
-      await env.DB.prepare(
-        `INSERT INTO jv_signups
+// tarkista löytyykö sama henkilö jo aiemmin
+const existing = await env.DB.prepare(
+  `SELECT id
+   FROM jv_signups
+   WHERE full_name = ?
+   ORDER BY id DESC
+   LIMIT 1`
+).bind(fullName).all();
+
+if (existing.results && existing.results[0]) {
+  // päivitä olemassa oleva
+  await env.DB.prepare(
+    `UPDATE jv_signups
+     SET shift_id = ?,
+         slot_index = ?,
+         email = ?,
+         phone = ?,
+         jv_card_number = ?,
+         home_unit = ?,
+         active = 1,
+         updated_at = CAST(strftime('%s','now') AS INTEGER)
+     WHERE id = ?`
+  ).bind(
+    shiftId,
+    slotIndex,
+    email,
+    phone,
+    jvCard,
+    homeUnit,
+    existing.results[0].id
+  ).run();
+
+} else {
+  // uusi ilmoittautuminen
+  await env.DB.prepare(
+    `INSERT INTO jv_signups
+     (shift_id, slot_index, full_name, email, phone, jv_card_number, home_unit, source, active, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'public', 1, CAST(strftime('%s','now') AS INTEGER), CAST(strftime('%s','now') AS INTEGER))`
+  ).bind(
+    shiftId,
+    slotIndex,
+    fullName,
+    email,
+    phone,
+    jvCard,
+    homeUnit
+  ).run();
+}
          (shift_id, slot_index, full_name, email, phone, jv_card_number, home_unit, source, active, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'public', 1, CAST(strftime('%s','now') AS INTEGER), CAST(strftime('%s','now') AS INTEGER))`
       ).bind(
