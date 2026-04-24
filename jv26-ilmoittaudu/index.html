@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JV 2026 ilmoittautuminen</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f3f6f4;
+      color: #1f2a1f;
+    }
+    .wrap {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    h1 {
+      font-size: 28px;
+      margin: 0 0 16px;
+    }
+    .card, .formbox {
+      background: #dff0db;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .time {
+      font-size: 22px;
+      font-weight: bold;
+      margin-bottom: 6px;
+      line-height: 1.3;
+    }
+    .meta {
+      font-size: 14px;
+      color: #475569;
+      margin-bottom: 10px;
+    }
+    input, select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px;
+      border: 1px solid #b7cdb4;
+      border-radius: 8px;
+      font-size: 16px;
+      background: #fff;
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 8px;
+      background: #2f6f3e;
+      color: white;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    .status {
+      margin-top: 10px;
+      font-size: 14px;
+      min-height: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>JV 2026 ilmoittautuminen</h1>
+
+    <div class="formbox">
+      <select id="shift_id"></select>
+      <input id="first_name" placeholder="Etunimi" />
+      <input id="last_name" placeholder="Sukunimi" />
+      <input id="email" placeholder="Sähköposti" />
+      <input id="phone" placeholder="Puhelin" />
+      <input id="jv_card_number" placeholder="JV-kortin numero" />
+      <input id="home_unit" placeholder="Paikkakunta / rauhanyhdistys" />
+      <button onclick="submitSignup()">Ilmoittaudu vuoroon</button>
+      <div id="formStatus" class="status"></div>
+    </div>
+
+    <div id="list"></div>
+  </div>
+
+  <script>
+    let rows = [];
+
+    function formatFiDateTime(dbText) {
+      const [datePart, timePart] = dbText.split(" ");
+      const [y, m, d] = datePart.split("-");
+      return `${d}.${m}.${y} ${timePart.slice(0,5)}`;
+    }
+
+    function formatRange(row) {
+      return `${formatFiDateTime(row.start_at)} – ${formatFiDateTime(row.end_at)}`;
+    }
+
+    function escapeHtml(str) {
+      return (str || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function render(rows) {
+      const select = document.getElementById("shift_id");
+      const list = document.getElementById("list");
+
+      const freeRows = rows.filter(r => r.free > 0);
+
+      select.innerHTML = freeRows.map(r =>
+        `<option value="${r.id}">${escapeHtml(formatRange(r))} — vapaita: ${r.free}</option>`
+      ).join("");
+
+      list.innerHTML = rows.map(r => `
+        <div class="card">
+          <div class="time">${escapeHtml(formatRange(r))}</div>
+          <div class="meta">Henkilötarve: ${r.needed} · Vapaita paikkoja: ${r.free}</div>
+        </div>
+      `).join("");
+    }
+
+    async function load() {
+      const res = await fetch("/api/jv-public");
+      rows = await res.json();
+      render(rows);
+    }
+
+    async function submitSignup() {
+      const formStatus = document.getElementById("formStatus");
+      formStatus.textContent = "Tallennetaan...";
+
+      const payload = {
+        shift_id: Number(document.getElementById("shift_id").value),
+        first_name: document.getElementById("first_name").value,
+        last_name: document.getElementById("last_name").value,
+        email: document.getElementById("email").value,
+        phone: document.getElementById("phone").value,
+        jv_card_number: document.getElementById("jv_card_number").value,
+        home_unit: document.getElementById("home_unit").value
+      };
+
+      const res = await fetch("/api/jv-public", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        formStatus.textContent = data.error || "Tallennus epäonnistui";
+        await load();
+        return;
+      }
+
+      formStatus.textContent = "Ilmoittautuminen tallennettu.";
+
+      document.getElementById("first_name").value = "";
+      document.getElementById("last_name").value = "";
+      document.getElementById("email").value = "";
+      document.getElementById("phone").value = "";
+      document.getElementById("jv_card_number").value = "";
+      document.getElementById("home_unit").value = "";
+
+      await load();
+    }
+
+    load();
+    setInterval(load, 20000);
+  </script>
+</body>
+</html>
