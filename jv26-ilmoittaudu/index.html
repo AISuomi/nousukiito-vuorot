@@ -105,23 +105,27 @@
         .replaceAll("'", "&#039;");
     }
 
-    function render(rows) {
-      const select = document.getElementById("shift_id");
-      const list = document.getElementById("list");
+function render(rows) {
+  const select = document.getElementById("shift_id");
+  const list = document.getElementById("list");
+  const currentValue = select ? select.value : "";
 
-      const freeRows = rows.filter(r => r.free > 0);
+  const freeRows = rows.filter(r => r.free > 0);
 
-      select.innerHTML = freeRows.map(r =>
-        `<option value="${r.id}">${escapeHtml(formatRange(r))} — vapaita: ${r.free}</option>`
-      ).join("");
+  select.innerHTML = freeRows.map(r => {
+    const selected = String(r.id) === String(currentValue) ? "selected" : "";
+    return `<option value="${r.id}" ${selected}>
+      ${escapeHtml(formatRange(r))} — vapaita: ${r.free}
+    </option>`;
+  }).join("");
 
-      list.innerHTML = rows.map(r => `
-        <div class="card">
-          <div class="time">${escapeHtml(formatRange(r))}</div>
-          <div class="meta">Henkilötarve: ${r.needed} · Vapaita paikkoja: ${r.free}</div>
-        </div>
-      `).join("");
-    }
+  list.innerHTML = rows.map(r => `
+    <div class="card">
+      <div class="time">${escapeHtml(formatRange(r))}</div>
+      <div class="meta">Henkilötarve: ${r.needed} · Vapaita paikkoja: ${r.free}</div>
+    </div>
+  `).join("");
+}
 
     async function load() {
       const res = await fetch("/api/jv-public");
