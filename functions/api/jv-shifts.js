@@ -1,49 +1,102 @@
 export async function onRequestGet({ env, request }) {
   const group = request.headers.get("Authorization");
-  if (!group) return new Response("Unauthorized", { status: 401 });
+  if (group !== "jv26") {
+    return new Response("Unauthorized", { status: 401 });
+  }
 
   const { results } = await env.DB.prepare(
-    `SELECT id, grp, label, slot1, slot2,
-            slot1_phone, slot1_home, slot2_phone, slot2_home,
-            sort_order, updated_at
-     FROM shifts
-     WHERE grp = ?
-     ORDER BY sort_order ASC, id ASC`
-  ).bind(group).all();
+    `SELECT id, start_at, end_at, needed, names_json, updated_at
+     FROM jv_shifts
+     ORDER BY start_at ASC, end_at ASC, id ASC`
+  ).all();
 
-  return new Response(JSON.stringify(results), {
+  const rows = (results || []).map(r => ({
+    ...r,
+    names: safeParseJson(r.names_json, r.needed)
+  }));
+
+  return new Response(JSON.stringify(rows), {
     headers: { "Content-Type": "application/json" }
   });
 }
 
 export async function onRequestPost({ env, request }) {
   const group = request.headers.get("Authorization");
-  if (!group) return new Response("Unauthorized", { status: 401 });
+  if (group !== "jv26") {
+    return new Response("Unauthorized", { status: 401 });
+  }
 
   const data = await request.json();
 
+  if (!data.id || !Array.isArray(data.names)) {
+    return new Response(JSON.stringify({ error: "Bad request" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+
+  const current = await env.DB.prepare(
+    `SELECT id, needed, names_json
+     FROM jv_shifts
+     WHERE id = ?`
+  ).bind(data.id).all();
+
+  if (!current.results || !current.results[0]) {
+    return new Response(JSON.stringify({ error: "Row not found" }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+
+  const row = current.results[0];
+  const needed = Number(row.needed || 0);
+
+  const cleaned = data.names
+    .slice(0, needed)
+    .map(x => (x || "").trim());
+
+  while (cleaned.length < needed) {
+    cleaned.push("");
+  }
+
   await env.DB.prepare(
-    `UPDATE shifts
-     SET slot1 = ?,
-         slot2 = ?,
-         slot1_phone = ?,
-         slot1_home = ?,
-         slot2_phone = ?,
-         slot2_home = ?,
+    `UPDATE jv_shifts
+     SET names_json = ?,
          updated_at = CAST(strftime('%s','now') AS INTEGER)
-     WHERE id = ? AND grp = ?`
+     WHERE id = ?`
   ).bind(
-    (data.slot1 || "").trim(),
-    (data.slot2 || "").trim(),
-    (data.slot1_phone || "").trim(),
-    (data.slot1_home || "").trim(),
-    (data.slot2_phone || "").trim(),
-    (data.slot2_home || "").trim(),
-    data.id,
-    group
+    JSON.stringify(cleaned),
+    data.id
   ).run();
 
-  return new Response(JSON.stringify({ ok: true }), {
+  const updated = await env.DB.prepare(
+    `SELECT id, start_at, end_at, needed, names_json, updated_at
+     FROM jv_shifts
+     WHERE id = ?`
+  ).bind(data.id).all();
+
+  const out = updated.results[0];
+
+  return new Response(JSON.stringify({
+    ok: true,
+    row: {
+      ...out,
+      names: safeParseJson(out.names_json, out.needed)
+    }
+  }), {
     headers: { "Content-Type": "application/json" }
   });
+}
+
+function safeParseJson(value, needed) {
+  try {
+    const arr = JSON.parse(value || "[]");
+    if (Array.isArray(arr)) {
+      const out = arr.slice(0, needed).map(x => String(x || ""));
+      while (out.length < needed) out.push("");
+      return out;
+    }
+  } catch (e) {}
+
+  return Array.from({ length: Number(needed || 0) }, () => "");
 }
