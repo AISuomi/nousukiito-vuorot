@@ -48,6 +48,7 @@
       border-radius: 8px;
       font-size: 16px;
       background: #fff;
+      margin-bottom: 8px;
     }
 
     input[readonly] {
@@ -58,8 +59,20 @@
     .name-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
+      gap: 14px;
       margin-top: 12px;
+    }
+
+    .person-box {
+      background: rgba(255,255,255,0.35);
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .person-title {
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #334155;
     }
 
     .button-row {
@@ -224,25 +237,24 @@
             <div class="label">${escapeHtml(row.label)}</div>
 
             <div class="name-grid">
-              <input
-                type="text"
-                id="slot1_${row.id}"
-                placeholder="Nimi 1"
-                value="${escapeHtml(row.slot1 || "")}"
-                ${slot1Locked ? "readonly" : ""}
-              >
-              <input
-                type="text"
-                id="slot2_${row.id}"
-                placeholder="Nimi 2"
-                value="${escapeHtml(row.slot2 || "")}"
-                ${slot2Locked ? "readonly" : ""}
-              >
+              <div class="person-box">
+                <div class="person-title">Henkilö 1</div>
+                <input type="text" id="slot1_${row.id}" placeholder="Nimi 1" value="${escapeHtml(row.slot1 || "")}" ${slot1Locked ? "readonly" : ""}>
+                <input type="text" id="slot1_phone_${row.id}" placeholder="Puhelin 1" value="${escapeHtml(row.slot1_phone || "")}" ${slot1Locked ? "readonly" : ""}>
+                <input type="text" id="slot1_home_${row.id}" placeholder="Paikkakunta 1" value="${escapeHtml(row.slot1_home || "")}" ${slot1Locked ? "readonly" : ""}>
+              </div>
+
+              <div class="person-box">
+                <div class="person-title">Henkilö 2</div>
+                <input type="text" id="slot2_${row.id}" placeholder="Nimi 2" value="${escapeHtml(row.slot2 || "")}" ${slot2Locked ? "readonly" : ""}>
+                <input type="text" id="slot2_phone_${row.id}" placeholder="Puhelin 2" value="${escapeHtml(row.slot2_phone || "")}" ${slot2Locked ? "readonly" : ""}>
+                <input type="text" id="slot2_home_${row.id}" placeholder="Paikkakunta 2" value="${escapeHtml(row.slot2_home || "")}" ${slot2Locked ? "readonly" : ""}>
+              </div>
             </div>
 
             <div class="button-row">
-              <button class="secondary" onclick="unlockField(${row.id}, 1)">Muokkaa nimeä 1</button>
-              <button class="secondary" onclick="unlockField(${row.id}, 2)">Muokkaa nimeä 2</button>
+              <button class="secondary" onclick="unlockField(${row.id}, 1)">Muokkaa henkilöä 1</button>
+              <button class="secondary" onclick="unlockField(${row.id}, 2)">Muokkaa henkilöä 2</button>
               <button onclick="saveRow(${row.id})">Tallenna muutokset</button>
             </div>
 
@@ -257,17 +269,25 @@
     }
 
     function unlockField(id, slotNumber) {
-      const input = document.getElementById(`slot${slotNumber}_${id}`);
-      if (!input) return;
+      const fields = [
+        document.getElementById(`slot${slotNumber}_${id}`),
+        document.getElementById(`slot${slotNumber}_phone_${id}`),
+        document.getElementById(`slot${slotNumber}_home_${id}`)
+      ].filter(Boolean);
 
-      if (input.readOnly) {
-        const ok = confirm("Tämä kenttä sisältää jo nimen. Haluatko avata sen muokattavaksi?");
+      const nameInput = fields[0];
+
+      if (nameInput && nameInput.readOnly) {
+        const ok = confirm("Tämä henkilöpaikka sisältää jo tietoja. Haluatko avata sen muokattavaksi?");
         if (!ok) return;
       }
 
-      input.readOnly = false;
-      input.focus();
-      input.setSelectionRange(input.value.length, input.value.length);
+      fields.forEach(input => input.readOnly = false);
+
+      if (nameInput) {
+        nameInput.focus();
+        nameInput.setSelectionRange(nameInput.value.length, nameInput.value.length);
+      }
     }
 
     async function load() {
@@ -287,30 +307,32 @@
     async function saveRow(id) {
       const slot1Input = document.getElementById("slot1_" + id);
       const slot2Input = document.getElementById("slot2_" + id);
+      const slot1PhoneInput = document.getElementById("slot1_phone_" + id);
+      const slot1HomeInput = document.getElementById("slot1_home_" + id);
+      const slot2PhoneInput = document.getElementById("slot2_phone_" + id);
+      const slot2HomeInput = document.getElementById("slot2_home_" + id);
+
       const status = document.getElementById("status_" + id);
       const updated = document.getElementById("updated_" + id);
 
       const slot1 = slot1Input.value.trim();
       const slot2 = slot2Input.value.trim();
+      const slot1_phone = slot1PhoneInput.value.trim();
+      const slot1_home = slot1HomeInput.value.trim();
+      const slot2_phone = slot2PhoneInput.value.trim();
+      const slot2_home = slot2HomeInput.value.trim();
 
       const original = rowsById[id] || {};
       const original1 = (original.slot1 || "").trim();
       const original2 = (original.slot2 || "").trim();
 
-      const overwriting1 =
-        original1 !== "" &&
-        slot1 !== original1 &&
-        slot1 !== "";
-
-      const overwriting2 =
-        original2 !== "" &&
-        slot2 !== original2 &&
-        slot2 !== "";
+      const overwriting1 = original1 !== "" && slot1 !== original1 && slot1 !== "";
+      const overwriting2 = original2 !== "" && slot2 !== original2 && slot2 !== "";
 
       if (overwriting1 || overwriting2) {
-      const ok = confirm("Olet muuttamassa jo täytettyä nimeä. Haluatko varmasti tallentaa muutoksen?");
-      if (!ok) return;
-}
+        const ok = confirm("Olet muuttamassa jo täytettyä nimeä. Haluatko varmasti tallentaa muutoksen?");
+        if (!ok) return;
+      }
 
       status.textContent = "Tallennetaan...";
 
@@ -323,7 +345,11 @@
         body: JSON.stringify({
           id,
           slot1,
-          slot2
+          slot2,
+          slot1_phone,
+          slot1_home,
+          slot2_phone,
+          slot2_home
         })
       });
 
@@ -333,19 +359,32 @@
       }
 
       const data = await res.json();
+
       const row = data.row || {
         ...original,
         slot1,
-        slot2
+        slot2,
+        slot1_phone,
+        slot1_home,
+        slot2_phone,
+        slot2_home,
+        updated_at: Math.floor(Date.now() / 1000)
       };
 
       rowsById[id] = row;
 
       slot1Input.value = row.slot1 || "";
       slot2Input.value = row.slot2 || "";
+      slot1PhoneInput.value = row.slot1_phone || "";
+      slot1HomeInput.value = row.slot1_home || "";
+      slot2PhoneInput.value = row.slot2_phone || "";
+      slot2HomeInput.value = row.slot2_home || "";
 
-      slot1Input.readOnly = isLockedValue(row.slot1);
-      slot2Input.readOnly = isLockedValue(row.slot2);
+      const slot1Locked = isLockedValue(row.slot1);
+      const slot2Locked = isLockedValue(row.slot2);
+
+      [slot1Input, slot1PhoneInput, slot1HomeInput].forEach(input => input.readOnly = slot1Locked);
+      [slot2Input, slot2PhoneInput, slot2HomeInput].forEach(input => input.readOnly = slot2Locked);
 
       updated.textContent = "Viimeksi muokattu: " + formatUpdatedAt(row.updated_at);
       status.textContent = "Tallennettu";
