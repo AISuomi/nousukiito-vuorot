@@ -50,6 +50,11 @@
       background: #fff;
     }
 
+    input[readonly] {
+      background: #eef3ed;
+      color: #334155;
+    }
+
     .topbar {
       display: flex;
       justify-content: space-between;
@@ -104,7 +109,6 @@
       color: #2f6f3e;
       min-height: 18px;
     }
-
 
     .hidden {
       display: none;
@@ -199,18 +203,6 @@
       return `${formatFiDateTime(row.start_at)} – ${formatFiDateTime(row.end_at)}`;
     }
 
-    function formatUpdatedAt(ts) {
-      if (!ts) return "Ei vielä muokattu";
-      const d = new Date(ts * 1000);
-      return d.toLocaleString("fi-FI", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit"
-      });
-    }
-
     function renderRows(rows) {
       rowsById = {};
       rows.forEach(row => rowsById[row.id] = row);
@@ -220,27 +212,32 @@
       app.innerHTML = rows.map(row => {
         const inputs = Array.from({ length: row.needed }, (_, i) => {
           const value = row.names?.[i] || "";
+          const locked = value.trim() !== "";
+
           return `
             <input
               type="text"
               id="name_${row.id}_${i}"
               placeholder="Nimi ${i + 1}"
               value="${escapeHtml(value)}"
+              ${locked ? "readonly" : ""}
             >
           `;
         }).join("");
 
+        const freeCount = (row.names || []).filter(x => (x || "").trim() === "").length;
+
         return `
           <div class="card">
             <div class="time">${escapeHtml(formatRange(row))}</div>
-            <div class="meta">Henkilötarve: ${row.needed}</div>
+            <div class="meta">Henkilötarve: ${row.needed} · Vapaita paikkoja: ${freeCount}</div>
 
             <div class="names">
               ${inputs}
             </div>
 
             <div class="button-row">
-              <button onclick="saveRow(${row.id})">Tallenna muutokset</button>
+              <button onclick="saveRow(${row.id})">Tallenna lisäykset</button>
             </div>
 
             <div class="status" id="status_${row.id}"></div>
@@ -266,22 +263,19 @@
     async function saveRow(id) {
       const row = rowsById[id];
       const status = document.getElementById("status_" + id);
-      const updated = document.getElementById("updated_" + id);
 
       const names = [];
+
       for (let i = 0; i < row.needed; i++) {
-        names.push(document.getElementById(`name_${id}_${i}`).value.trim());
-      }
+        const oldValue = (row.names?.[i] || "").trim();
+        const input = document.getElementById(`name_${id}_${i}`);
+        const newValue = input.value.trim();
 
-      const oldNames = row.names || [];
-      const hasOverwrite = names.some((name, i) => {
-        const oldValue = (oldNames[i] || "").trim();
-        return oldValue !== "" && name !== oldValue && name !== "";
-      });
-
-      if (hasOverwrite) {
-        const ok = confirm("Olet muuttamassa jo täytettyä nimeä. Haluatko varmasti tallentaa muutoksen?");
-        if (!ok) return;
+        if (oldValue !== "") {
+          names.push(oldValue);
+        } else {
+          names.push(newValue);
+        }
       }
 
       status.textContent = "Tallennetaan...";
@@ -304,6 +298,7 @@
       rowsById[id] = data.row;
 
       status.textContent = "Tallennettu";
+      await load();
 
       setTimeout(() => {
         status.textContent = "";
