@@ -16,8 +16,7 @@
       margin: 0 auto;
       padding: 16px;
     }
-    h1 {
-      font-size: 28px;
+    h1, h2 {
       margin: 0 0 16px;
     }
     .login-box, .card {
@@ -38,15 +37,19 @@
       margin-bottom: 10px;
     }
     button {
-      padding: 10px 14px;
+      padding: 9px 12px;
       border: 0;
       border-radius: 8px;
       background: #2f6f3e;
       color: white;
-      font-size: 15px;
+      font-size: 14px;
       cursor: pointer;
+      margin-top: 6px;
     }
-    .secondary {
+    button.danger {
+      background: #b91c1c;
+    }
+    button.secondary {
       background: #6b7280;
     }
     .hidden { display: none; }
@@ -58,6 +61,12 @@
     .line {
       margin: 4px 0;
       font-size: 15px;
+    }
+    .name-row {
+      background: rgba(255,255,255,0.45);
+      border-radius: 8px;
+      padding: 10px;
+      margin: 8px 0;
     }
   </style>
 </head>
@@ -72,7 +81,12 @@
 
     <div id="app" class="hidden">
       <button class="secondary" onclick="logout()">Kirjaudu ulos</button>
-      <div id="list" style="margin-top:12px;"></div>
+
+      <h2 style="margin-top:20px;">Vuorot ja nimien poisto</h2>
+      <div id="shiftList"></div>
+
+      <h2 style="margin-top:24px;">Julkisen lomakkeen lisätiedot</h2>
+      <div id="signupList"></div>
     </div>
   </div>
 
@@ -82,12 +96,14 @@
     let token = localStorage.getItem(tokenKey);
 
     function formatFiDateTime(dbText) {
+      if (!dbText) return "";
       const [datePart, timePart] = dbText.split(" ");
       const [y, m, d] = datePart.split("-");
       return `${d}.${m}.${y} ${timePart.slice(0,5)}`;
     }
 
     function formatRange(row) {
+      if (!row.start_at || !row.end_at) return "Ei tällä hetkellä vuorossa";
       return `${formatFiDateTime(row.start_at)} – ${formatFiDateTime(row.end_at)}`;
     }
 
@@ -123,19 +139,63 @@
       location.reload();
     }
 
-    async function load() {
+    async function deleteName(shiftId, slotIndex, name) {
+      const ok = confirm(`Poistetaanko nimi vuorosta?\n\n${name}`);
+      if (!ok) return;
+
       const res = await fetch("/api/jv-admin", {
-        headers: { Authorization: token }
+        method: "POST",
+        headers: {
+          Authorization: token,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          action: "delete_name",
+          shift_id: shiftId,
+          slot_index: slotIndex
+        })
       });
 
-      if (res.status === 401) {
-        logout();
+      if (!res.ok) {
+        alert("Poisto epäonnistui");
         return;
       }
 
-      const rows = await res.json();
+      await load();
+    }
 
-      document.getElementById("list").innerHTML = rows.map(r => `
+    function renderShifts(shifts) {
+      document.getElementById("shiftList").innerHTML = shifts.map(row => {
+        const namesHtml = row.names.map((name, i) => {
+          const cleanName = (name || "").trim();
+
+          if (!cleanName) {
+            return `
+              <div class="name-row">
+                Paikka ${i + 1}: <em>tyhjä</em>
+              </div>
+            `;
+          }
+
+          return `
+            <div class="name-row">
+              <div><strong>Paikka ${i + 1}:</strong> ${escapeHtml(cleanName)}</div>
+              <button class="danger" onclick="deleteName(${row.id}, ${i}, '${escapeHtml(cleanName)}')">Poista nimi</button>
+            </div>
+          `;
+        }).join("");
+
+        return `
+          <div class="card">
+            <div class="time">${escapeHtml(formatRange(row))}</div>
+            ${namesHtml}
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderSignups(signups) {
+      document.getElementById("signupList").innerHTML = signups.map(r => `
         <div class="card">
           <div class="time">${escapeHtml(formatRange(r))}</div>
           <div class="line"><strong>Nimi:</strong> ${escapeHtml(r.full_name)}</div>
@@ -147,11 +207,26 @@
       `).join("");
     }
 
+    async function load() {
+      const res = await fetch("/api/jv-admin", {
+        headers: { Authorization: token }
+      });
+
+      if (res.status === 401) {
+        logout();
+        return;
+      }
+
+      const data = await res.json();
+
+      renderShifts(data.shifts || []);
+      renderSignups(data.signups || []);
+    }
+
     if (token) {
       document.getElementById("loginBox").classList.add("hidden");
       document.getElementById("app").classList.remove("hidden");
       load();
-      setInterval(load, 20000);
     }
   </script>
 </body>
