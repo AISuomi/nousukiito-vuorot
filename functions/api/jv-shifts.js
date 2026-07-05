@@ -50,14 +50,26 @@ export async function onRequestPost({ env, request }) {
 
   const row = current.results[0];
   const needed = Number(row.needed || 0);
+  const oldNames = safeParseJson(row.names_json, needed);
 
-  const cleaned = data.names
+  const incoming = data.names
     .slice(0, needed)
     .map(x => (x || "").trim());
 
-  while (cleaned.length < needed) {
-    cleaned.push("");
+  while (incoming.length < needed) {
+    incoming.push("");
   }
+
+  const cleaned = oldNames.map((oldName, i) => {
+    const oldValue = (oldName || "").trim();
+    const newValue = (incoming[i] || "").trim();
+
+    if (oldValue !== "") {
+      return oldValue;
+    }
+
+    return newValue;
+  });
 
   await env.DB.prepare(
     `UPDATE jv_shifts
