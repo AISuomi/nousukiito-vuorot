@@ -173,7 +173,7 @@ function render(rows, updateSelect = true) {
   document.getElementById("list").innerHTML = rows.map(r => `
     <div class="card ${r.free === 0 ? "full" : ""}">
       <div class="time">${escapeHtml(formatRange(r))}</div>
-      <div class="meta">Henkilötarve: ${r.needed} · Vapaita paikkoja: ${r.free}</div>
+      <div class="meta">Vapaita paikkoja: ${r.free}</div>
     </div>
   `).join("");
 }
