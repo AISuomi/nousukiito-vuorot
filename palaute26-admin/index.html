@@ -215,10 +215,25 @@
       }
 
       if (!response.ok) {
-        document.getElementById("list").innerHTML =
-          '<div class="empty">Palautteiden lataaminen epäonnistui.</div>';
-        return;
-      }
+  let errorText = "Palautteiden lataaminen epäonnistui.";
+
+  try {
+    const errorData = await response.json();
+
+    if (errorData.error) {
+      errorText += " " + errorData.error;
+    }
+
+    if (errorData.details) {
+      errorText += ": " + errorData.details;
+    }
+  } catch {}
+
+  document.getElementById("list").innerHTML =
+    '<div class="empty">' + escapeHtml(errorText) + '</div>';
+
+  return;
+}
 
       feedbackRows = await response.json();
       render();
